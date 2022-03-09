@@ -1,0 +1,135 @@
+---
+title: "Practical Machine Learning - Project"
+author: "Viren"
+date: "06/03/2022"
+output: html_document
+---
+
+Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+***<font size="6"> Step1: Load all the Libraries ***<font size="3">
+```{r setup, echo=TRUE}
+
+library(knitr)
+library(caret)
+library(randomForest)
+library(rpart)
+library(rpart.plot)
+
+
+```
+
+***<font size="6"> Step2: Download and clean the Data ***<font size="3">
+
+```{r download, echo=TRUE}
+if(!file.exists("./data")){dir.create("./data")}
+trainUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+download.file(trainUrl,destfile="./data/pml-training.csv")
+
+if(!file.exists("./data")){dir.create("./data")}
+testUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+download.file(testUrl,destfile="./data/pml-testing.csv")
+
+```
+
+
+```{r load, echo=TRUE}
+init_TrainrawData <- read.csv((trainUrl)) #, na.strings=c("NA","#DIV/0!",""))
+init_TestrawData  <- read.csv((testUrl)) # ,, na.strings=c("NA","#DIV/0!",""))
+
+dim(init_TrainrawData)
+dim(init_TestrawData)
+
+
+#Removing Variables which are having nearly zero variance.
+
+non_zero_var <- nearZeroVar(init_TrainrawData)
+
+
+org_training_data <- init_TrainrawData[,-non_zero_var]
+org_testing_data <- init_TestrawData[,-non_zero_var]
+
+dim(org_training_data)
+dim(org_testing_data)
+
+##Removing Variables which are having NA values > 95%.
+na_val_col <- sapply(org_training_data, function(x) mean(is.na(x))) > 0.95
+
+org_training_data <- org_training_data[,na_val_col == FALSE]
+org_testing_data <- org_testing_data[,na_val_col == FALSE]
+
+dim(org_training_data)
+dim(org_testing_data)
+
+
+colnames(org_training_data)
+colnames(org_testing_data)
+
+#remove identification only variables
+org_training_data <- org_training_data[,8:59]
+org_testing_data <- org_testing_data[,8:59]
+
+dim(org_training_data)
+dim(org_testing_data)
+
+colnames(org_training_data)
+colnames(org_testing_data)
+
+# create a partition with the training dataset 
+inTrain  <- createDataPartition(org_training_data$classe, p=0.6,list=FALSE)
+TrainSet <- org_training_data[inTrain, ]
+TestSet  <- org_training_data[-inTrain, ]
+
+dim(TrainSet)
+dim(TestSet)
+
+
+
+```
+
+
+***<font size="6"> Step3: Decision Tree Model ***<font size="3">
+
+```{r test, echo=TRUE}
+DT_modfit <- train(classe ~ ., data = TrainSet, method="rpart")
+dim(DT_modfit)
+
+##Prediction in terms of Decision Tree Model
+
+DT_prediction <- predict(DT_modfit, TestSet)
+confusionMatrix(as.factor(TestSet$classe), DT_prediction)
+rpart.plot(DT_modfit$finalModel, roundint=FALSE)
+
+```
+
+
+***<font size="6"> Step4: Random Forest ***<font size="3">
+
+```{r test2, echo=TRUE}
+
+set.seed(111)
+controlRF <- trainControl(method="cv", number=3, verboseIter=FALSE)
+modFitRandForest <- train(classe ~ ., data=TrainSet, method="rf", trControl=controlRF)                    
+
+predictRandForest <- predict(modFitRandForest, newdata=TestSet)
+confMatRandForest <- confusionMatrix(predictRandForest, as.factor(TestSet$classe))
+confMatRandForest
+
+```
+
+
+***<font size="6"> Conclusion ***<font size="3">
+Conclusion
+Based on the results, the random forest algorithm has a better accuracy than the decision tree model. We are getting 99.08% in sample accuracy, while the decision tree gives us only  56.11% in sample accuracy.  For the final prediction the Random Forest model is therefore used.
+
+
+***<font size="6"> Final Prediction ***<font size="3">
+
+```{r Predict, echo=TRUE}
+
+predict(modFitRandForest, TestSet)
+
+```
+
